@@ -8,6 +8,7 @@ import {
     respondTicket,
     assignTicket,
     getTicketStats,
+    deflectTicket,
 } from "../controllers/ticketController.js";
 
 import {
@@ -16,6 +17,8 @@ import {
 } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
+
+router.post("/deflect", protect, deflectTicket);
 
 // Author routes
 router.post("/", protect, createTicket);

@@ -13,6 +13,7 @@ import MyBooks from "./pages/author/MyBooks";
 import AddBook from "./pages/author/AddBook";
 import CreateTicket from "./pages/author/CreateTicket";
 import MyTickets from "./pages/author/MyTickets";
+import ProfileSettings from "./pages/author/ProfileSettings";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import AdminRoute from "./routes/AdminRoute";
@@ -32,6 +33,17 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        <Route
+          path="/author/settings"
+          element={
+            <ProtectedRoute>
+              <AuthorRoute>
+                <ProfileSettings />
+              </AuthorRoute>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Admin routes */}
         <Route

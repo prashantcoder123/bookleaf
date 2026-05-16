@@ -11,6 +11,7 @@ const Sidebar = ({ role }) => {
         { path: "/author/my-books", label: "My Books", icon: "📚" },
         { path: "/author/create-ticket", label: "Create Ticket", icon: "🎫" },
         { path: "/author/my-tickets", label: "My Tickets", icon: "📋" },
+        { path: "/author/settings", label: "Settings", icon: "⚙️" },
     ];
 
     const adminLinks = [

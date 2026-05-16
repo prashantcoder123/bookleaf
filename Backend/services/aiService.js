@@ -193,8 +193,39 @@ Write the response:`;
     }
 };
 
+// AI Deflection - attempt to answer user query instantly
+const deflectQuery = async (query) => {
+    try {
+        const prompt = `You are a helpful AI assistant for BookLeaf Publishing authors.
+        
+${BOOKLEAF_KB}
+
+The author is about to submit a support ticket with this query: "${query}"
+
+Your goal is to see if this query can be answered instantly using the Knowledge Base.
+If the Knowledge Base clearly answers the question (e.g. royalty percentage, payout threshold, printing turnaround), provide a concise, friendly answer (max 3 sentences).
+If the Knowledge Base does NOT answer it, or it requires human intervention (like looking up a specific account, fixing an error, or checking book status), respond exactly with the word "NO_DEFLECTION".
+
+Respond:`;
+
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().trim();
+
+        if (text === "NO_DEFLECTION" || text.includes("NO_DEFLECTION")) {
+            return null;
+        }
+
+        return text;
+
+    } catch (error) {
+        console.log("AI Deflection failed:", error.message);
+        return null;
+    }
+};
+
 export {
     classifyTicket,
     generatePriority,
     generateDraftResponse,
+    deflectQuery,
 };

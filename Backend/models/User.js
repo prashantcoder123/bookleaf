@@ -23,6 +23,18 @@ const userSchema = new mongoose.Schema(
             enum: ["AUTHOR", "ADMIN"],
             default: "AUTHOR",
         },
+
+        phone: {
+            type: String,
+            default: "",
+        },
+
+        bankDetails: {
+            accountName: { type: String, default: "" },
+            accountNumber: { type: String, default: "" },
+            ifscCode: { type: String, default: "" },
+            bankName: { type: String, default: "" },
+        },
     },
     {
         timestamps: true,

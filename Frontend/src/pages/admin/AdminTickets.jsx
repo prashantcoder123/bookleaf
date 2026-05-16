@@ -26,19 +26,55 @@ const AdminTickets = () => {
 
     const fetchTickets = async () => {
         try {
-            const params = new URLSearchParams();
-            if (filters.status) params.append("status", filters.status);
-            if (filters.category) params.append("category", filters.category);
-            if (filters.priority) params.append("priority", filters.priority);
-            if (filters.sort) params.append("sort", filters.sort);
+            const query = new URLSearchParams();
+            if (filters.status) query.append("status", filters.status);
+            if (filters.category) query.append("category", filters.category);
+            if (filters.priority) query.append("priority", filters.priority);
+            if (filters.sort) query.append("sort", filters.sort);
 
-            const { data } = await API.get(`/tickets?${params.toString()}`);
+            const { data } = await API.get(`/tickets?${query.toString()}`);
             setTickets(data.tickets);
         } catch (error) {
             console.log(error);
         } finally {
             setLoading(false);
         }
+    };
+
+    const exportToCSV = () => {
+        if (tickets.length === 0) return;
+        
+        // Define headers
+        const headers = ["Ticket ID", "Subject", "Author", "Email", "Category", "Priority", "Status", "Date Created"];
+        
+        // Map data to rows
+        const rows = tickets.map(t => [
+            t._id,
+            `"${t.subject.replace(/"/g, '""')}"`, // escape quotes
+            `"${t.author?.name || 'Unknown'}"`,
+            t.author?.email || 'Unknown',
+            t.category,
+            t.priority,
+            t.status,
+            new Date(t.createdAt).toLocaleDateString()
+        ]);
+        
+        // Combine headers and rows
+        const csvContent = [
+            headers.join(","),
+            ...rows.map(r => r.join(","))
+        ].join("\n");
+        
+        // Create blob and download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `bookleaf_tickets_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const categories = [
@@ -177,6 +213,29 @@ const AdminTickets = () => {
                             Clear Filters
                         </button>
                     )}
+
+                    <div style={{ flex: 1 }}></div>
+
+                    <button
+                        onClick={exportToCSV}
+                        style={{
+                            padding: "8px 16px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "8px",
+                            fontSize: "13px",
+                            color: "#1a1a2e",
+                            background: "#fff",
+                            cursor: "pointer",
+                            fontWeight: "600",
+                            fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                        }}
+                    >
+                        <span>📥</span> Export CSV
+                    </button>
                 </div>
 
                 {/* Ticket list */}

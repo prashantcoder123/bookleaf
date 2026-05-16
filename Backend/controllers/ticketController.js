@@ -1,10 +1,32 @@
 import Ticket from "../models/Ticket.js";
-
+import Book from "../models/Book.js";
 import {
     classifyTicket,
     generatePriority,
     generateDraftResponse,
+    deflectQuery,
 } from "../services/aiService.js";
+
+// @desc    Check if a query can be deflected by AI
+// @route   POST /api/tickets/deflect
+// @access  Private (Author)
+export const deflectTicket = async (req, res) => {
+    try {
+        const { query } = req.body;
+        if (!query || query.length < 15) {
+            return res.json({ deflected: false });
+        }
+
+        const answer = await deflectQuery(query);
+        if (answer) {
+            return res.json({ deflected: true, answer });
+        }
+
+        res.json({ deflected: false });
+    } catch (error) {
+        res.json({ deflected: false }); // fails silently on error
+    }
+};
 
 // Author creates a ticket
 export const createTicket = async (req, res) => {

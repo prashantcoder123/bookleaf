@@ -16,6 +16,10 @@ const CreateTicket = () => {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
     const [fileName, setFileName] = useState("");
+    
+    // AI Deflection state
+    const [deflectLoading, setDeflectLoading] = useState(false);
+    const [deflectAnswer, setDeflectAnswer] = useState("");
 
     const navigate = useNavigate();
 
@@ -35,29 +39,17 @@ const CreateTicket = () => {
     const submitHandler = async (e) => {
         e.preventDefault();
         setError("");
+        setDeflectAnswer("");
 
-        if (!form.subject.trim()) {
-            setError("Subject is required");
-            return;
-        }
-        if (!form.description.trim()) {
-            setError("Description is required");
+        if (!form.subject.trim() || !form.description.trim()) {
+            setError("Subject and description are required");
             return;
         }
 
         try {
             setLoading(true);
 
-            const payload = {
-                subject: form.subject,
-                description: form.description,
-            };
-
-            if (form.book) {
-                payload.book = form.book;
-            }
-
-            await API.post("/tickets", payload);
+            await API.post("/tickets", form);
             setSuccess(true);
 
             setTimeout(() => {
@@ -66,8 +58,33 @@ const CreateTicket = () => {
 
         } catch (err) {
             setError(err.response?.data?.message || "Failed to create ticket");
-        } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeflect = async () => {
+        if (!form.subject.trim() && !form.description.trim()) {
+            setError("Please enter a subject or description first");
+            return;
+        }
+        
+        setError("");
+        setDeflectLoading(true);
+        setDeflectAnswer("");
+        
+        try {
+            const query = `${form.subject}. ${form.description}`;
+            const { data } = await API.post("/tickets/deflect", { query });
+            
+            if (data.deflected && data.answer) {
+                setDeflectAnswer(data.answer);
+            } else {
+                setDeflectAnswer("I couldn't find an instant answer for this. Please go ahead and submit the ticket for our human support team.");
+            }
+        } catch (err) {
+            setDeflectAnswer("Couldn't connect to AI. Please submit the ticket.");
+        } finally {
+            setDeflectLoading(false);
         }
     };
 
@@ -222,6 +239,60 @@ const CreateTicket = () => {
                                     onChange={(e) => setForm({ ...form, description: e.target.value })}
                                 />
                             </div>
+
+                            {/* AI Deflection Box */}
+                            {(form.subject || form.description) && (
+                                <div style={{
+                                    marginBottom: "24px",
+                                    padding: "20px",
+                                    background: "#eff6ff",
+                                    border: "1px solid #bfdbfe",
+                                    borderRadius: "10px",
+                                }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: deflectAnswer ? "12px" : "0" }}>
+                                        <div>
+                                            <h4 style={{ fontSize: "14px", fontWeight: "600", color: "#1e3a8a", marginBottom: "4px", display: "flex", alignItems: "center", gap: "6px" }}>
+                                                <span>🤖</span> Instant AI Answer
+                                            </h4>
+                                            <p style={{ fontSize: "13px", color: "#3b82f6" }}>
+                                                See if our AI can solve this instantly before submitting a ticket.
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleDeflect}
+                                            disabled={deflectLoading}
+                                            style={{
+                                                padding: "8px 16px",
+                                                background: "#2563eb",
+                                                color: "#fff",
+                                                border: "none",
+                                                borderRadius: "6px",
+                                                fontSize: "12px",
+                                                fontWeight: "600",
+                                                cursor: deflectLoading ? "not-allowed" : "pointer",
+                                                opacity: deflectLoading ? 0.7 : 1,
+                                            }}
+                                        >
+                                            {deflectLoading ? "Thinking..." : "Ask AI"}
+                                        </button>
+                                    </div>
+                                    
+                                    {deflectAnswer && (
+                                        <div className="animate-fade-in" style={{
+                                            background: "#fff",
+                                            padding: "16px",
+                                            borderRadius: "8px",
+                                            fontSize: "14px",
+                                            color: "#1e293b",
+                                            lineHeight: "1.6",
+                                            borderLeft: "4px solid #3b82f6",
+                                        }}>
+                                            {deflectAnswer}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* File attachment (UI only) */}
                             <div style={{ marginBottom: "32px" }}>

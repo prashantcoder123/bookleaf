@@ -30,6 +30,39 @@ const AdminBooks = () => {
         return { bg: "#e2e8f0", color: "#475569" };
     };
 
+    const exportToCSV = () => {
+        if (books.length === 0) return;
+        
+        const headers = ["Title", "Author", "Email", "ISBN", "Status", "Copies Sold", "Total Royalty", "Pending Royalty", "Print Partner"];
+        
+        const rows = books.map(b => [
+            `"${b.title?.replace(/"/g, '""') || ''}"`,
+            `"${b.author?.name || 'Unknown'}"`,
+            b.author?.email || 'Unknown',
+            b.isbn || '',
+            b.status || '',
+            b.total_copies_sold || 0,
+            b.total_royalty_earned || 0,
+            b.royalty_pending || 0,
+            `"${b.print_partner || ''}"`
+        ]);
+        
+        const csvContent = [
+            headers.join(","),
+            ...rows.map(r => r.join(","))
+        ].join("\n");
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `bookleaf_books_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const filtered = books.filter((b) =>
         b.title?.toLowerCase().includes(search.toLowerCase()) ||
         b.author?.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -150,6 +183,28 @@ const AdminBooks = () => {
                             ✕
                         </button>
                     )}
+                    
+                    <button
+                        onClick={exportToCSV}
+                        style={{
+                            padding: "8px 16px",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "8px",
+                            fontSize: "13px",
+                            color: "#1a1a2e",
+                            background: "#fff",
+                            cursor: "pointer",
+                            fontWeight: "600",
+                            fontFamily: "inherit",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            marginLeft: "10px",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                        }}
+                    >
+                        <span>📥</span> Export CSV
+                    </button>
                 </div>
 
                 {/* Books table */}
