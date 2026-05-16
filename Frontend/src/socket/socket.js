@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const socketURL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+const socketURL = "https://bookleaf-2t1p.onrender.com";
 const socket = io(socketURL);
 
 export default socket;
