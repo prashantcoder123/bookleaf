@@ -1,0 +1,440 @@
+{
+  "name": "BookLeaf Royalty Summary Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "royalty-summary",
+        "options": {
+          "responseMode": "lastNode"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook - Receive Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "webhookId": "royalty-summary"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "api-key-check",
+              "leftValue": "={{ $json.headers['x-api-key'] }}",
+              "rightValue": "bookleaf-n8n-secret-2026",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-api-key",
+      "name": "IF - Validate API Key",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Webhook - Receive Trigger').item.json.body.bubble_app_url }}/api/1.1/obj/user/{{ $('Webhook - Receive Trigger').item.json.body.author_bubble_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "fetch-author",
+      "name": "HTTP - Fetch Author from Bubble",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bubble-api-auth",
+          "name": "Bubble API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Webhook - Receive Trigger').item.json.body.bubble_app_url }}/api/1.1/obj/book?constraints=[{\"key\":\"author\",\"constraint_type\":\"equals\",\"value\":\"{{ $('Webhook - Receive Trigger').item.json.body.author_bubble_id }}\"}]",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "fetch-books",
+      "name": "HTTP - Fetch Author Books from Bubble",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bubble-api-auth",
+          "name": "Bubble API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the AI prompt with all author & book data\nconst author = $('HTTP - Fetch Author from Bubble').first().json.response;\nconst books = $('HTTP - Fetch Author Books from Bubble').first().json.response.results;\nconst webhookData = $('Webhook - Receive Trigger').first().json.body;\n\n// Calculate consolidated figures\nlet totalEarned = 0;\nlet totalPaid = 0;\nlet totalPending = 0;\nlet publishedBooks = [];\nlet productionBooks = [];\n\nfor (const book of books) {\n  totalEarned += book.total_royalty_earned || 0;\n  totalPaid += book.royalty_paid || 0;\n  totalPending += book.royalty_pending || 0;\n  \n  if (book.status && book.status.includes('Published')) {\n    publishedBooks.push(book);\n  } else {\n    productionBooks.push(book);\n  }\n}\n\n// Build book details string for the prompt\nlet bookDetails = '';\nfor (const book of publishedBooks) {\n  bookDetails += `\\n- \"${book.title}\" (${book.genre})\\n`;\n  bookDetails += `  Status: ${book.status}\\n`;\n  bookDetails += `  Copies Sold: ${book.total_copies_sold}\\n`;\n  bookDetails += `  Total Royalty Earned: ₹${book.total_royalty_earned?.toLocaleString('en-IN')}\\n`;\n  bookDetails += `  Royalty Paid: ₹${book.royalty_paid?.toLocaleString('en-IN')}\\n`;\n  bookDetails += `  Royalty Pending: ₹${book.royalty_pending?.toLocaleString('en-IN')}\\n`;\n  bookDetails += `  Last Payout Date: ${book.last_royalty_payout_date || 'No payout yet'}\\n`;\n}\n\nfor (const book of productionBooks) {\n  bookDetails += `\\n- \"${book.title}\" (${book.genre})\\n`;\n  bookDetails += `  Status: ${book.status} (In Production — not yet published)\\n`;\n}\n\nconst prompt = `You are a customer communications specialist for BookLeaf Publishing. Generate a professional, warm royalty summary email for an author.\n\nBOOKLEAF KNOWLEDGE BASE:\nBookLeaf Publishing is a self-publishing company operating in India and the US.\nROYALTY POLICY:\n- 80/20 split: 80% of net profit to author, 20% to BookLeaf.\n- Net profit = MRP minus printing cost, platform commission (Amazon/Flipkart), and shipping charges.\n- Royalties calculated quarterly, paid within 45 days of quarter end.\n- Quarterly cycle: Q1 (Jan-Mar) paid by mid-May, Q2 (Apr-Jun) paid by mid-Aug, Q3 (Jul-Sep) paid by mid-Nov, Q4 (Oct-Dec) paid by mid-Feb.\n- Minimum payout threshold: ₹1,000. Below this, rolls over to next quarter.\n- Payouts via bank transfer to linked account.\n\nTONE GUIDELINES:\n- Always empathetic and professional. Authors are partners, not customers.\n- Acknowledge concern before solutions.\n- Be specific with numbers, dates, statuses — no vague reassurances.\n- If BookLeaf's fault, own it directly. No corporate deflection.\n- Always end with clear next step.\n\nAUTHOR DATA:\n- Name: ${author.name}\n- Email: ${author.email}\n\nBOOKS:\n${bookDetails}\n\nCONSOLIDATED SUMMARY:\n- Total Earned across all books: ₹${totalEarned.toLocaleString('en-IN')}\n- Total Paid: ₹${totalPaid.toLocaleString('en-IN')}\n- Total Pending: ₹${totalPending.toLocaleString('en-IN')}\n\nINSTRUCTIONS:\n1. Open with a personalised greeting using the author's first name.\n2. For each published book, provide a concise royalty summary with sales and payment figures.\n3. Clearly show: total earned, total paid, total pending.\n4. If there's a pending amount, explain when they can expect the next payout based on the quarterly cycle and 45-day window. Calculate the specific expected date.\n5. If all royalties are fully paid, include a positive acknowledgement.\n6. If any books are still in production (not yet published), give a brief status update and mention the next expected production stage.\n7. Close warmly and professionally, matching BookLeaf's tone.\n8. Keep the email concise but thorough (300-500 words).\n9. Format with clear sections and line breaks for readability.\n10. Use ₹ symbol for all Indian currency amounts.\n11. Do NOT include a subject line — just the email body.\n12. Sign off as \"The BookLeaf Royalty Team\".`;\n\nreturn {\n  prompt: prompt,\n  author_name: author.name,\n  author_email: author.email,\n  author_bubble_id: webhookData.author_bubble_id,\n  idempotency_key: webhookData.idempotency_key,\n  callback_url: webhookData.callback_url,\n  total_pending: totalPending,\n  total_earned: totalEarned,\n  total_paid: totalPaid\n};"
+      },
+      "id": "build-prompt",
+      "name": "Code - Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $credentials.apiKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": {{ JSON.stringify($json.prompt) }}\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"maxOutputTokens\": 2048\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-generate",
+      "name": "HTTP - Gemini AI Generate Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 200],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "gemini-api-key",
+          "name": "Gemini API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the generated email content from Gemini response\nconst aiResponse = $('HTTP - Gemini AI Generate Summary').first().json;\nconst previousData = $('Code - Build AI Prompt').first().json;\n\nlet emailContent = '';\n\ntry {\n  emailContent = aiResponse.candidates[0].content.parts[0].text;\n} catch (e) {\n  throw new Error('Failed to extract AI response: ' + JSON.stringify(aiResponse));\n}\n\nreturn {\n  email_content: emailContent,\n  author_name: previousData.author_name,\n  author_email: previousData.author_email,\n  author_bubble_id: previousData.author_bubble_id,\n  callback_url: previousData.callback_url,\n  idempotency_key: previousData.idempotency_key,\n  status: 'Success'\n};"
+      },
+      "id": "extract-email",
+      "name": "Code - Extract Email Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "royalties@bookleaf.com",
+        "toEmail": "={{ $json.author_email }}",
+        "subject": "=Your BookLeaf Royalty Summary — {{ new Date().toLocaleString('en-IN', { month: 'long', year: 'numeric' }) }}",
+        "emailType": "text",
+        "message": "={{ $json.email_content }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email (Bonus)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1760, 100],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-credentials",
+          "name": "SMTP Credentials"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "notes": "BONUS: Sends actual email. If SMTP not configured, workflow continues to callback anyway."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Code - Extract Email Content').item.json.callback_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"author_bubble_id\": \"{{ $('Code - Extract Email Content').item.json.author_bubble_id }}\",\n  \"idempotency_key\": \"{{ $('Code - Extract Email Content').item.json.idempotency_key }}\",\n  \"status\": \"Success\",\n  \"email_content\": {{ JSON.stringify($('Code - Extract Email Content').item.json.email_content) }},\n  \"completed_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "callback-success",
+      "name": "HTTP - Callback to Bubble (Success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1980, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bubble-api-auth",
+          "name": "Bubble API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"message\": \"Royalty summary generated and sent successfully\",\n  \"author_bubble_id\": \"{{ $('Code - Extract Email Content').item.json.author_bubble_id }}\"\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "Respond to Webhook (Success)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"error\",\n  \"message\": \"Unauthorized: Invalid API key\"\n}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "respond-unauthorized",
+      "name": "Respond to Webhook (401 Unauthorized)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [660, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle errors from any previous node\n// Determine which node failed and construct error info\nconst webhookData = $('Webhook - Receive Trigger').first().json.body;\nconst errorMessage = $input.first().json.error?.message || $input.first().json.message || 'Unknown error occurred during processing';\n\nreturn {\n  author_bubble_id: webhookData.author_bubble_id,\n  callback_url: webhookData.callback_url,\n  idempotency_key: webhookData.idempotency_key,\n  status: 'Failed',\n  error_message: errorMessage\n};"
+      },
+      "id": "handle-error",
+      "name": "Code - Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 500]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"author_bubble_id\": \"{{ $json.author_bubble_id }}\",\n  \"idempotency_key\": \"{{ $json.idempotency_key }}\",\n  \"status\": \"Failed\",\n  \"error_message\": {{ JSON.stringify($json.error_message) }},\n  \"completed_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "callback-failure",
+      "name": "HTTP - Callback to Bubble (Failed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 500],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bubble-api-auth",
+          "name": "Bubble API Key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"error\",\n  \"message\": {{ JSON.stringify($('Code - Handle Error').item.json.error_message) }},\n  \"author_bubble_id\": \"{{ $('Code - Handle Error').item.json.author_bubble_id }}\"\n}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "respond-failure",
+      "name": "Respond to Webhook (500 Error)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1760, 500]
+    }
+  ],
+  "connections": {
+    "Webhook - Receive Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF - Validate API Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Validate API Key": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Fetch Author from Bubble",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook (401 Unauthorized)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Fetch Author from Bubble": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Fetch Author Books from Bubble",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Fetch Author Books from Bubble": {
+      "main": [
+        [
+          {
+            "node": "Code - Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Gemini AI Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Gemini AI Generate Summary": {
+      "main": [
+        [
+          {
+            "node": "Code - Extract Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Extract Email Content": {
+      "main": [
+        [
+          {
+            "node": "Send Email (Bonus)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email (Bonus)": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Callback to Bubble (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Callback to Bubble (Success)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Handle Error": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Callback to Bubble (Failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Callback to Bubble (Failed)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook (500 Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "BookLeaf",
+      "id": "bookleaf-tag"
+    }
+  ],
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "bookleaf-assignment-2"
+  }
+}

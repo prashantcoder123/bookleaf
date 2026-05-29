@@ -45,7 +45,7 @@ PORT=5000
 MONGO_URI=mongodb+srv://prashantkum7676_db_user:uUXob4Yva01sy659@cluster0.m25fwms.mongodb.net/?appName=Cluster0
 JWT_SECRET=bookleafsecret
 GEMINI_API_KEY=AIzaSyBIMgcp2esJCFiY0w9lc-dSVRpRgkWVoX8
-```
+```   
 
 ### 3. Database Seeding
 Run the seed script to populate the database with authors, books, and create the admin user.
